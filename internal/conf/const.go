@@ -152,6 +152,7 @@ const (
 	// audit
 	AuditEnabled       = "audit_enabled"
 	AuditRetentionDays = "audit_retention_days"
+	AuditIgnoreNames   = "audit_ignore_names"
 
 	// traffic
 	TaskOfflineDownloadThreadsNum         = "offline_download_task_threads_num"
@@ -196,4 +197,6 @@ const (
 	SharingIDKey
 	SkipHookKey
 	AuditViaKey
+	AuditUsernameKey
+	AuditIntentKey
 )

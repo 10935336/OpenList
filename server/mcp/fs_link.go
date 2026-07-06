@@ -182,7 +182,8 @@ func proxyFileURL(ctx context.Context, reqPath string, meta *model.Meta, storage
 func signedFileURL(ctx context.Context, prefix, reqPath string, meta *model.Meta, linkType string) string {
 	query := url.Values{}
 	if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
-		query.Set("sign", sign.Sign(reqPath))
+		user, _ := ctx.Value(conf.UserKey).(*model.User)
+		query.Set("sign", sign.SignWithUser(common.UserSignName(user), reqPath))
 	}
 	if linkType != "" {
 		query.Set("type", linkType)

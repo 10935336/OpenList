@@ -83,7 +83,7 @@ func (s *Server) callFSGet(c *gin.Context, raw json.RawMessage) (any, *rpcError)
 			IsDir:        obj.IsDir(),
 			Modified:     obj.ModTime(),
 			Created:      obj.CreateTime(),
-			Sign:         common.Sign(obj, parentPath, isEncrypt(meta, reqPath)),
+			Sign:         common.Sign(user, obj, parentPath, isEncrypt(meta, reqPath)),
 			Thumb:        thumb,
 			Type:         utils.GetFileType(obj.GetName()),
 			HashInfoStr:  obj.GetHash().String(),
@@ -94,7 +94,7 @@ func (s *Server) callFSGet(c *gin.Context, raw json.RawMessage) (any, *rpcError)
 		Readme:   getReadme(meta, reqPath),
 		Header:   getHeader(meta, reqPath),
 		Provider: provider,
-		Related:  toObjResp(related, parentPath, isEncrypt(parentMeta, parentPath)),
+		Related:  toObjResp(user, related, parentPath, isEncrypt(parentMeta, parentPath)),
 	}, nil
 }
 
@@ -133,7 +133,8 @@ func buildFSGetRawURL(ctx context.Context, c *gin.Context, reqPath string, obj m
 		}
 		query := ""
 		if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
-			query = "?sign=" + sign.Sign(reqPath)
+			user, _ := ctx.Value(conf.UserKey).(*model.User)
+			query = "?sign=" + sign.SignWithUser(common.UserSignName(user), reqPath)
 		}
 		return fmt.Sprintf("%s/p%s%s", common.GetApiUrl(ctx), utils.EncodePath(reqPath, true), query), provider, nil
 	}

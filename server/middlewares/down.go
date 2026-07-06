@@ -9,6 +9,7 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/op"
+	"github.com/OpenListTeam/OpenList/v4/internal/sign"
 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	"github.com/OpenListTeam/OpenList/v4/server/common"
 	"github.com/gin-gonic/gin"
@@ -29,16 +30,27 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 			common.ErrorPage(c, err, 500, true)
 			return
 		}
+		// distinguish explicit downloads (dl=1, added by the frontend download
+		// buttons) from previews/streaming for the audit log
+		intent := model.AuditActionPreview
+		if _, ok := c.GetQuery("dl"); ok {
+			intent = model.AuditActionDownload
+		}
 		common.GinAppendValues(c, conf.MetaKey, meta,
-			conf.AuditViaKey, "direct", conf.ClientIPKey, c.ClientIP())
+			conf.AuditViaKey, "direct", conf.ClientIPKey, c.ClientIP(),
+			conf.AuditIntentKey, intent)
 		// verify sign
 		if needSign(meta, rawPath) {
-			s := c.Query("sign")
-			err = verifyFunc(rawPath, strings.TrimSuffix(s, "/"))
+			s := strings.TrimSuffix(c.Query("sign"), "/")
+			err = verifyFunc(rawPath, s)
 			if err != nil {
 				common.ErrorPage(c, err, 401)
 				c.Abort()
 				return
+			}
+			// the sign is valid, so an embedded username is trustworthy
+			if username := sign.UserFromSign(s); username != "" {
+				common.GinAppendValues(c, conf.AuditUsernameKey, username)
 			}
 		}
 		c.Next()

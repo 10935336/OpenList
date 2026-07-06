@@ -2,12 +2,15 @@ package audit
 
 import (
 	"context"
+	stdpath "path"
+	"strings"
 	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/db"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
 	"github.com/OpenListTeam/OpenList/v4/internal/setting"
+	"github.com/OpenListTeam/go-cache"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -15,11 +18,15 @@ const (
 	chanSize      = 1024
 	batchSize     = 100
 	flushInterval = 2 * time.Second
+	// repeated reads of the same file by the same user/ip within this window
+	// are logged once (video players and retries fire many range requests)
+	dedupeWindow = 5 * time.Minute
 )
 
 var (
-	logCh chan model.AuditLog
-	done  chan struct{}
+	logCh       chan model.AuditLog
+	done        chan struct{}
+	dedupeCache = cache.NewMemCache[struct{}]()
 )
 
 func Enabled() bool {
@@ -34,6 +41,12 @@ func Record(ctx context.Context, action, path string, size int64, detail string)
 	if user == nil && via == "" {
 		return
 	}
+	// the direct-link middleware distinguishes explicit downloads from previews
+	if action == model.AuditActionDownload {
+		if intent, ok := ctx.Value(conf.AuditIntentKey).(string); ok && intent != "" {
+			action = intent
+		}
+	}
 	entry := model.AuditLog{
 		Via:    via,
 		Action: action,
@@ -44,6 +57,9 @@ func Record(ctx context.Context, action, path string, size int64, detail string)
 	if user != nil {
 		entry.UserID = user.ID
 		entry.Username = user.Username
+	} else if username, ok := ctx.Value(conf.AuditUsernameKey).(string); ok {
+		// username embedded in a verified download sign
+		entry.Username = username
 	}
 	if ip, ok := ctx.Value(conf.ClientIPKey).(string); ok {
 		entry.IP = ip
@@ -54,7 +70,7 @@ func Record(ctx context.Context, action, path string, size int64, detail string)
 // RecordEntry logs an audit entry as is (except CreatedAt), for callers that
 // don't have a request context, e.g. task callbacks.
 func RecordEntry(entry model.AuditLog) {
-	if logCh == nil || !Enabled() {
+	if logCh == nil || !Enabled() || shouldSkip(&entry) {
 		return
 	}
 	entry.CreatedAt = time.Now()
@@ -63,6 +79,26 @@ func RecordEntry(entry model.AuditLog) {
 	default:
 		log.Warnf("audit log channel is full, dropping entry: %s %s", entry.Action, entry.Path)
 	}
+}
+
+// shouldSkip drops read entries for ignored file names (frontend-rendered
+// helper files like README.md) and deduplicates repeated reads.
+func shouldSkip(entry *model.AuditLog) bool {
+	if entry.Action != model.AuditActionDownload && entry.Action != model.AuditActionPreview {
+		return false
+	}
+	base := strings.ToLower(stdpath.Base(entry.Path))
+	for name := range strings.SplitSeq(setting.GetStr(conf.AuditIgnoreNames), "\n") {
+		if name = strings.TrimSpace(name); name != "" && strings.ToLower(name) == base {
+			return true
+		}
+	}
+	key := entry.Username + "|" + entry.IP + "|" + entry.Action + "|" + entry.Path
+	if _, ok := dedupeCache.Get(key); ok {
+		return true
+	}
+	dedupeCache.Set(key, struct{}{}, cache.WithEx[struct{}](dedupeWindow))
+	return false
 }
 
 func InitAudit() {

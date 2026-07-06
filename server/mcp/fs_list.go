@@ -70,7 +70,7 @@ func (s *Server) callFSList(c *gin.Context, raw json.RawMessage) (any, *rpcError
 
 	total, paged := paginateObjs(objs, args.Page, args.PerPage)
 	return handles.FsListResp{
-		Content:            toObjResp(paged, reqPath, isEncrypt(meta, reqPath)),
+		Content:            toObjResp(user, paged, reqPath, isEncrypt(meta, reqPath)),
 		Total:              int64(total),
 		Write:              write,
 		WriteContentBypass: writeContentBypass,
@@ -135,7 +135,7 @@ func paginateObjs(objs []model.Obj, page, perPage int) (int, []model.Obj) {
 	return total, objs[start:end]
 }
 
-func toObjResp(objs []model.Obj, parent string, encrypt bool) []handles.ObjResp {
+func toObjResp(user *model.User, objs []model.Obj, parent string, encrypt bool) []handles.ObjResp {
 	resp := make([]handles.ObjResp, 0, len(objs))
 	for _, obj := range objs {
 		thumb, _ := model.GetThumb(obj)
@@ -146,7 +146,7 @@ func toObjResp(objs []model.Obj, parent string, encrypt bool) []handles.ObjResp 
 			IsDir:        obj.IsDir(),
 			Modified:     obj.ModTime(),
 			Created:      obj.CreateTime(),
-			Sign:         common.Sign(obj, parent, encrypt),
+			Sign:         common.Sign(user, obj, parent, encrypt),
 			Thumb:        thumb,
 			Type:         utils.GetObjType(obj.GetName(), obj.IsDir()),
 			HashInfoStr:  obj.GetHash().String(),

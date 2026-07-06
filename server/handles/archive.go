@@ -131,7 +131,7 @@ func FsArchiveMeta(c *gin.Context, req *ArchiveMetaReq, user *model.User) {
 	}
 	s := ""
 	if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
-		s = sign.SignArchive(reqPath)
+		s = sign.SignArchiveWithUser(common.UserSignName(user), reqPath)
 	}
 	api := "/ae"
 	if ret.DriverProviding {

@@ -5,6 +5,7 @@ import "time"
 // audit actions
 const (
 	AuditActionDownload = "download"
+	AuditActionPreview  = "preview"
 	AuditActionUpload   = "upload"
 	AuditActionMkdir    = "mkdir"
 	AuditActionRename   = "rename"

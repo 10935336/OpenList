@@ -115,7 +115,7 @@ func FsList(c *gin.Context, req *ListReq, user *model.User) {
 		}
 	}
 	common.SuccessResp(c, FsListResp{
-		Content:            toObjsResp(objs, reqPath, isEncrypt(meta, reqPath)),
+		Content:            toObjsResp(user, objs, reqPath, isEncrypt(meta, reqPath)),
 		Total:              int64(total),
 		Readme:             getReadme(meta, reqPath),
 		Header:             getHeader(meta, reqPath),
@@ -225,7 +225,7 @@ func pagination(objs []model.Obj, req *model.PageReq) (int, []model.Obj) {
 	return total, objs[start:end]
 }
 
-func toObjsResp(objs []model.Obj, parent string, encrypt bool) []ObjResp {
+func toObjsResp(user *model.User, objs []model.Obj, parent string, encrypt bool) []ObjResp {
 	var resp []ObjResp
 	for _, obj := range objs {
 		thumb, _ := model.GetThumb(obj)
@@ -238,7 +238,7 @@ func toObjsResp(objs []model.Obj, parent string, encrypt bool) []ObjResp {
 			Created:      obj.CreateTime(),
 			HashInfoStr:  obj.GetHash().String(),
 			HashInfo:     obj.GetHash().Export(),
-			Sign:         common.Sign(obj, parent, encrypt),
+			Sign:         common.Sign(user, obj, parent, encrypt),
 			Thumb:        thumb,
 			Type:         utils.GetObjType(obj.GetName(), obj.IsDir()),
 			MountDetails: mountDetails,
@@ -320,7 +320,7 @@ func FsGet(c *gin.Context, req *FsGetReq, user *model.User) {
 			if rawURL == "" {
 				query := ""
 				if isEncrypt(meta, reqPath) || setting.GetBool(conf.SignAll) {
-					query = "?sign=" + sign.Sign(reqPath)
+					query = "?sign=" + sign.SignWithUser(common.UserSignName(user), reqPath)
 				}
 				rawURL = fmt.Sprintf("%s/p%s%s",
 					common.GetApiUrl(c),
@@ -365,7 +365,7 @@ func FsGet(c *gin.Context, req *FsGetReq, user *model.User) {
 			Created:      obj.CreateTime(),
 			HashInfoStr:  obj.GetHash().String(),
 			HashInfo:     obj.GetHash().Export(),
-			Sign:         common.Sign(obj, parentPath, isEncrypt(meta, reqPath)),
+			Sign:         common.Sign(user, obj, parentPath, isEncrypt(meta, reqPath)),
 			Type:         utils.GetFileType(obj.GetName()),
 			Thumb:        thumb,
 			MountDetails: mountDetails,
@@ -374,7 +374,7 @@ func FsGet(c *gin.Context, req *FsGetReq, user *model.User) {
 		Readme:   getReadme(meta, reqPath),
 		Header:   getHeader(meta, reqPath),
 		Provider: provider,
-		Related:  toObjsResp(related, parentPath, isEncrypt(parentMeta, parentPath)),
+		Related:  toObjsResp(user, related, parentPath, isEncrypt(parentMeta, parentPath)),
 	})
 }
 

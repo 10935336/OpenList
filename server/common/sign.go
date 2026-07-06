@@ -9,9 +9,18 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/internal/sign"
 )
 
-func Sign(obj model.Obj, parent string, encrypt bool) string {
+// UserSignName returns the username to embed in download signs, empty for
+// guest/anonymous contexts.
+func UserSignName(user *model.User) string {
+	if user == nil || user.IsGuest() {
+		return ""
+	}
+	return user.Username
+}
+
+func Sign(user *model.User, obj model.Obj, parent string, encrypt bool) string {
 	if obj.IsDir() || (!encrypt && !setting.GetBool(conf.SignAll)) {
 		return ""
 	}
-	return sign.Sign(stdpath.Join(parent, obj.GetName()))
+	return sign.SignWithUser(UserSignName(user), stdpath.Join(parent, obj.GetName()))
 }
