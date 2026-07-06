@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/OpenListTeam/OpenList/v4/cmd/flags"
+	"github.com/OpenListTeam/OpenList/v4/internal/audit"
 	"github.com/OpenListTeam/OpenList/v4/internal/bootstrap/data"
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/db"
@@ -34,12 +35,14 @@ func Init() {
 	Log()
 	InitDB()
 	data.InitData()
+	audit.InitAudit()
 	InitStreamLimit()
 	InitIndex()
 	InitUpgradePatch()
 }
 
 func Release() {
+	audit.Close()
 	db.Close()
 }
 

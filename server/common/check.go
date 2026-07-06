@@ -23,10 +23,11 @@ func CanRead(user *model.User, meta *model.Meta, path string) bool {
 	if user == nil {
 		return true
 	}
-	if meta != nil && len(meta.ReadUsers) > 0 && !slices.Contains(meta.ReadUsers, user.ID) && MetaCoversPath(meta.Path, path, meta.ReadUsersSub) {
-		return false
+	if meta == nil {
+		return true
 	}
-	return true
+	return canAccessRestricted(user, path,
+		meta.Path, meta.ReadUsers, meta.ReadUsersSub, meta.ReadGroups, meta.ReadGroupsSub)
 }
 
 func CanWrite(user *model.User, meta *model.Meta, path string) bool {
@@ -34,10 +35,32 @@ func CanWrite(user *model.User, meta *model.Meta, path string) bool {
 	if user == nil {
 		return true
 	}
-	if meta != nil && len(meta.WriteUsers) > 0 && !slices.Contains(meta.WriteUsers, user.ID) && MetaCoversPath(meta.Path, path, meta.WriteUsersSub) {
-		return false
+	if meta == nil {
+		return true
 	}
-	return true
+	return canAccessRestricted(user, path,
+		meta.Path, meta.WriteUsers, meta.WriteUsersSub, meta.WriteGroups, meta.WriteGroupsSub)
+}
+
+// canAccessRestricted checks the user/group whitelists of a meta: if neither
+// applies to the path, access is allowed; otherwise the user must be in the
+// user whitelist or belong to one of the whitelisted groups.
+func canAccessRestricted(user *model.User, path string,
+	metaPath string, users []uint, usersSub bool, groups []uint, groupsSub bool) bool {
+	restrictedByUsers := len(users) > 0 && MetaCoversPath(metaPath, path, usersSub)
+	restrictedByGroups := len(groups) > 0 && MetaCoversPath(metaPath, path, groupsSub)
+	if !restrictedByUsers && !restrictedByGroups {
+		return true
+	}
+	if restrictedByUsers && slices.Contains(users, user.ID) {
+		return true
+	}
+	if restrictedByGroups && slices.ContainsFunc(user.GroupIDs, func(id uint) bool {
+		return slices.Contains(groups, id)
+	}) {
+		return true
+	}
+	return false
 }
 
 func CanWriteContentBypassUserPerms(meta *model.Meta, path string) bool {

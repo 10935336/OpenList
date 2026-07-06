@@ -65,6 +65,7 @@ type User struct {
 	//   14: can share
 	//   15: can customize share id
 	Permission int32  `json:"permission"`
+	GroupIDs   []uint `json:"group_ids" gorm:"serializer:json"` // user groups this user belongs to
 	OtpSecret  string `json:"-"`
 	SsoID      string `json:"sso_id"` // unique by sso platform
 	Authn      string `gorm:"type:text" json:"-"`

@@ -9,6 +9,7 @@ import (
 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
 	"github.com/OpenListTeam/OpenList/v4/server/common"
 
+	"github.com/OpenListTeam/OpenList/v4/internal/audit"
 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
@@ -44,6 +45,17 @@ func (t *UploadTask) Run() error {
 
 func (t *UploadTask) OnSucceeded() {
 	task_group.TransferCoordinator.Done(context.WithoutCancel(t.Ctx()), stdpath.Join(t.storage.GetStorage().MountPath, t.dstDirActualPath), true)
+	entry := model.AuditLog{
+		Via:    "task",
+		Action: model.AuditActionUpload,
+		Path:   stdpath.Join(t.storage.GetStorage().MountPath, t.dstDirActualPath, t.file.GetName()),
+		Size:   t.file.GetSize(),
+	}
+	if t.Creator != nil {
+		entry.UserID = t.Creator.ID
+		entry.Username = t.Creator.Username
+	}
+	audit.RecordEntry(entry)
 }
 
 func (t *UploadTask) OnFailed() {

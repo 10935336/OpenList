@@ -3,9 +3,11 @@ package fs
 import (
 	"context"
 	"io"
+	stdpath "path"
 
 	log "github.com/sirupsen/logrus"
 
+	"github.com/OpenListTeam/OpenList/v4/internal/audit"
 	"github.com/OpenListTeam/OpenList/v4/internal/driver"
 	"github.com/OpenListTeam/OpenList/v4/internal/errs"
 	"github.com/OpenListTeam/OpenList/v4/internal/model"
@@ -57,6 +59,7 @@ func Link(ctx context.Context, path string, args model.LinkArgs) (*model.Link, m
 		log.Errorf("failed link %s: %+v", path, err)
 		return nil, nil, err
 	}
+	audit.Record(ctx, model.AuditActionDownload, path, file.GetSize(), "")
 	return res, file, nil
 }
 
@@ -64,56 +67,72 @@ func MakeDir(ctx context.Context, path string) error {
 	err := makeDir(ctx, path)
 	if err != nil {
 		log.Errorf("failed make dir %s: %+v", path, err)
+		return err
 	}
-	return err
+	audit.Record(ctx, model.AuditActionMkdir, path, 0, "")
+	return nil
 }
 
 func Move(ctx context.Context, srcPath, dstDirPath string, skipHook ...bool) (task.TaskExtensionInfo, error) {
 	req, err := transfer(ctx, move, srcPath, dstDirPath, skipHook...)
 	if err != nil {
 		log.Errorf("failed move %s to %s: %+v", srcPath, dstDirPath, err)
+		return req, err
 	}
-	return req, err
+	audit.Record(ctx, model.AuditActionMove, srcPath, 0, dstDirPath)
+	return req, nil
 }
 
 func Copy(ctx context.Context, srcObjPath, dstDirPath string, skipHook ...bool) (task.TaskExtensionInfo, error) {
 	res, err := transfer(ctx, copy, srcObjPath, dstDirPath, skipHook...)
 	if err != nil {
 		log.Errorf("failed copy %s to %s: %+v", srcObjPath, dstDirPath, err)
+		return res, err
 	}
-	return res, err
+	audit.Record(ctx, model.AuditActionCopy, srcObjPath, 0, dstDirPath)
+	return res, nil
 }
 
 func Merge(ctx context.Context, srcObjPath, dstDirPath string, skipHook ...bool) (task.TaskExtensionInfo, error) {
 	res, err := transfer(ctx, merge, srcObjPath, dstDirPath, skipHook...)
 	if err != nil {
 		log.Errorf("failed merge %s to %s: %+v", srcObjPath, dstDirPath, err)
+		return res, err
 	}
-	return res, err
+	audit.Record(ctx, model.AuditActionMerge, srcObjPath, 0, dstDirPath)
+	return res, nil
 }
 
 func Rename(ctx context.Context, srcPath, dstName string, skipHook ...bool) error {
 	err := rename(ctx, srcPath, dstName, skipHook...)
 	if err != nil {
 		log.Errorf("failed rename %s to %s: %+v", srcPath, dstName, err)
+		return err
 	}
-	return err
+	audit.Record(ctx, model.AuditActionRename, srcPath, 0, dstName)
+	return nil
 }
 
 func Remove(ctx context.Context, path string) error {
 	err := remove(ctx, path)
 	if err != nil {
 		log.Errorf("failed remove %s: %+v", path, err)
+		return err
 	}
-	return err
+	audit.Record(ctx, model.AuditActionRemove, path, 0, "")
+	return nil
 }
 
 func PutDirectly(ctx context.Context, dstDirPath string, file model.FileStreamer, skipHook ...bool) error {
+	name := file.GetName()
+	size := file.GetSize()
 	err := putDirectly(ctx, dstDirPath, file, skipHook...)
 	if err != nil {
 		log.Errorf("failed put %s: %+v", dstDirPath, err)
+		return err
 	}
-	return err
+	audit.Record(ctx, model.AuditActionUpload, stdpath.Join(dstDirPath, name), size, "")
+	return nil
 }
 
 func PutAsTask(ctx context.Context, dstDirPath string, file model.FileStreamer) (task.TaskExtensionInfo, error) {
@@ -152,16 +171,20 @@ func ArchiveDriverExtract(ctx context.Context, path string, args model.ArchiveIn
 	l, obj, err := archiveDriverExtract(ctx, path, args)
 	if err != nil {
 		log.Errorf("failed extract [%s]%s: %+v", path, args.InnerPath, err)
+		return l, obj, err
 	}
-	return l, obj, err
+	audit.Record(ctx, model.AuditActionDownload, path, obj.GetSize(), args.InnerPath)
+	return l, obj, nil
 }
 
 func ArchiveInternalExtract(ctx context.Context, path string, args model.ArchiveInnerArgs) (io.ReadCloser, int64, error) {
-	l, obj, err := archiveInternalExtract(ctx, path, args)
+	l, size, err := archiveInternalExtract(ctx, path, args)
 	if err != nil {
 		log.Errorf("failed extract [%s]%s: %+v", path, args.InnerPath, err)
+		return l, size, err
 	}
-	return l, obj, err
+	audit.Record(ctx, model.AuditActionDownload, path, size, args.InnerPath)
+	return l, size, nil
 }
 
 type GetStoragesArgs struct {

@@ -155,6 +155,7 @@ func (d *FtpMainDriver) AuthUser(cc ftpserver.ClientContext, user, pass string) 
 		ctx = context.WithValue(ctx, conf.MetaPassKey, "")
 	}
 	ctx = context.WithValue(ctx, conf.ClientIPKey, ip)
+	ctx = context.WithValue(ctx, conf.AuditViaKey, "ftp")
 	ctx = context.WithValue(ctx, conf.ProxyHeaderKey, d.proxyHeader)
 	return ftp.NewAferoAdapter(ctx), nil
 }

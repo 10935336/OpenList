@@ -78,7 +78,9 @@ var supportedProtocolVersions = map[string]struct{}{
 }
 
 func Register(g *gin.RouterGroup) {
-	mcpGroup := g.Group("/mcp", middlewares.Auth(false), middlewares.AuthAdmin)
+	mcpGroup := g.Group("/mcp", middlewares.Auth(false), middlewares.AuthAdmin, func(c *gin.Context) {
+		common.GinAppendValues(c, conf.AuditViaKey, "mcp")
+	})
 	mcpGroup.GET("", defaultServer.handleGet)
 	mcpGroup.POST("", defaultServer.handlePost)
 	mcpGroup.DELETE("", defaultServer.handleDelete)

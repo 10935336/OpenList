@@ -50,6 +50,7 @@ func ServeWebDAV(c *gin.Context) {
 func WebDAVAuth(c *gin.Context) {
 	// check count of login
 	ip := c.ClientIP()
+	common.GinAppendValues(c, conf.AuditViaKey, "webdav", conf.ClientIPKey, ip)
 	guest, _ := op.GetGuest()
 	count, cok := model.LoginCache.Get(ip)
 	if cok && count >= model.DefaultMaxAuthRetries {

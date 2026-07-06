@@ -19,6 +19,8 @@ import (
 
 func redirectHandler(next http.Handler, authPairs map[string]string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r = r.WithContext(common.ContentWithValues(r.Context(),
+			conf.AuditViaKey, "s3", conf.ClientIPKey, utils.ClientIP(r)))
 		if u, ok := directObjectURL(r, authPairs); ok {
 			w.Header().Set("Referrer-Policy", "no-referrer")
 			w.Header().Set("Cache-Control", "max-age=0, no-cache, no-store, must-revalidate")

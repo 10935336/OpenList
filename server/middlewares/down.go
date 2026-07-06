@@ -29,7 +29,8 @@ func Down(verifyFunc func(string, string) error) func(c *gin.Context) {
 			common.ErrorPage(c, err, 500, true)
 			return
 		}
-		common.GinAppendValues(c, conf.MetaKey, meta)
+		common.GinAppendValues(c, conf.MetaKey, meta,
+			conf.AuditViaKey, "direct", conf.ClientIPKey, c.ClientIP())
 		// verify sign
 		if needSign(meta, rawPath) {
 			s := c.Query("sign")

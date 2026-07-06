@@ -16,6 +16,7 @@ import (
 // if token is empty, set user to guest
 func Auth(allowDisabledGuest bool) func(c *gin.Context) {
 	return func(c *gin.Context) {
+		common.GinAppendValues(c, conf.AuditViaKey, "web", conf.ClientIPKey, c.ClientIP())
 		token := c.GetHeader("Authorization")
 		if subtle.ConstantTimeCompare([]byte(token), []byte(setting.GetStr(conf.Token))) == 1 {
 			admin, err := op.GetAdmin()

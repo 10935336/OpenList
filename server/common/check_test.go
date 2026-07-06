@@ -984,3 +984,234 @@ func getMetaWriteUsersSub(meta *model.Meta) bool {
 	}
 	return meta.WriteUsersSub
 }
+
+func TestCanReadWithGroups(t *testing.T) {
+	tests := []struct {
+		name   string
+		user   *model.User
+		meta   *model.Meta
+		path   string
+		want   bool
+		reason string
+	}{
+		{
+			name: "user in read group",
+			user: &model.User{ID: 5, GroupIDs: []uint{10}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: false,
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "user belongs to group 10 which is whitelisted",
+		},
+		{
+			name: "user not in read group",
+			user: &model.User{ID: 5, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: false,
+			},
+			path:   "/protected",
+			want:   false,
+			reason: "user's groups don't intersect the whitelisted groups",
+		},
+		{
+			name: "user with no groups denied by group whitelist",
+			user: &model.User{ID: 5},
+			meta: &model.Meta{
+				Path:       "/protected",
+				ReadGroups: []uint{10},
+			},
+			path:   "/protected",
+			want:   false,
+			reason: "user belongs to no group",
+		},
+		{
+			name: "group whitelist with sub=true applies to sub path",
+			user: &model.User{ID: 5, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: true,
+			},
+			path:   "/protected/sub/file.txt",
+			want:   false,
+			reason: "restriction applies to sub paths and user is not in group",
+		},
+		{
+			name: "group whitelist with sub=false doesn't apply to sub path",
+			user: &model.User{ID: 5, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: false,
+			},
+			path:   "/protected/sub/file.txt",
+			want:   true,
+			reason: "restriction doesn't apply to sub paths",
+		},
+		{
+			name: "not in user whitelist but in group whitelist",
+			user: &model.User{ID: 5, GroupIDs: []uint{10}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadUsers:     []uint{1, 2},
+				ReadUsersSub:  true,
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: true,
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "either whitelist hit grants access",
+		},
+		{
+			name: "in user whitelist but not in group whitelist",
+			user: &model.User{ID: 1, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadUsers:     []uint{1, 2},
+				ReadUsersSub:  true,
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: true,
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "either whitelist hit grants access",
+		},
+		{
+			name: "in neither user nor group whitelist",
+			user: &model.User{ID: 5, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadUsers:     []uint{1, 2},
+				ReadUsersSub:  true,
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: true,
+			},
+			path:   "/protected",
+			want:   false,
+			reason: "both whitelists exist and neither is hit",
+		},
+		{
+			name: "user whitelist covers path but group whitelist doesn't",
+			user: &model.User{ID: 5, GroupIDs: []uint{10}},
+			meta: &model.Meta{
+				Path:          "/protected",
+				ReadUsers:     []uint{1},
+				ReadUsersSub:  true,
+				ReadGroups:    []uint{10},
+				ReadGroupsSub: false,
+			},
+			path:   "/protected/sub",
+			want:   false,
+			reason: "only the user whitelist applies to the sub path, and user 5 is not in it",
+		},
+		{
+			name: "empty whitelists allow everyone",
+			user: &model.User{ID: 5},
+			meta: &model.Meta{
+				Path:       "/protected",
+				ReadUsers:  []uint{},
+				ReadGroups: []uint{},
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "no restriction configured",
+		},
+		{
+			name: "backward compat: only user whitelist, user in it",
+			user: &model.User{ID: 1},
+			meta: &model.Meta{
+				Path:         "/protected",
+				ReadUsers:    []uint{1, 2},
+				ReadUsersSub: false,
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "behavior unchanged when no groups are configured",
+		},
+		{
+			name: "backward compat: only user whitelist, user not in it",
+			user: &model.User{ID: 5},
+			meta: &model.Meta{
+				Path:         "/protected",
+				ReadUsers:    []uint{1, 2},
+				ReadUsersSub: false,
+			},
+			path:   "/protected",
+			want:   false,
+			reason: "behavior unchanged when no groups are configured",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CanRead(tt.user, tt.meta, tt.path)
+			if got != tt.want {
+				t.Errorf("CanRead() = %v, want %v\nReason: %s", got, tt.want, tt.reason)
+			}
+		})
+	}
+}
+
+func TestCanWriteWithGroups(t *testing.T) {
+	tests := []struct {
+		name   string
+		user   *model.User
+		meta   *model.Meta
+		path   string
+		want   bool
+		reason string
+	}{
+		{
+			name: "user in write group",
+			user: &model.User{ID: 5, GroupIDs: []uint{10}},
+			meta: &model.Meta{
+				Path:           "/protected",
+				WriteGroups:    []uint{10},
+				WriteGroupsSub: true,
+			},
+			path:   "/protected/sub",
+			want:   true,
+			reason: "user belongs to whitelisted group",
+		},
+		{
+			name: "user not in write group",
+			user: &model.User{ID: 5, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:           "/protected",
+				WriteGroups:    []uint{10},
+				WriteGroupsSub: true,
+			},
+			path:   "/protected/sub",
+			want:   false,
+			reason: "user's groups don't intersect the whitelisted groups",
+		},
+		{
+			name: "write groups don't affect users in write users whitelist",
+			user: &model.User{ID: 1, GroupIDs: []uint{20}},
+			meta: &model.Meta{
+				Path:           "/protected",
+				WriteUsers:     []uint{1},
+				WriteUsersSub:  true,
+				WriteGroups:    []uint{10},
+				WriteGroupsSub: true,
+			},
+			path:   "/protected",
+			want:   true,
+			reason: "either whitelist hit grants access",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := CanWrite(tt.user, tt.meta, tt.path)
+			if got != tt.want {
+				t.Errorf("CanWrite() = %v, want %v\nReason: %s", got, tt.want, tt.reason)
+			}
+		})
+	}
+}

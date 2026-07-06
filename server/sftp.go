@@ -71,6 +71,7 @@ func (d *SftpDriver) GetFileSystem(sc *ssh.ServerConn) (sftpd.FileSystem, error)
 	ctx = context.WithValue(ctx, conf.UserKey, userObj)
 	ctx = context.WithValue(ctx, conf.MetaPassKey, "")
 	ctx = context.WithValue(ctx, conf.ClientIPKey, sc.RemoteAddr().String())
+	ctx = context.WithValue(ctx, conf.AuditViaKey, "sftp")
 	ctx = context.WithValue(ctx, conf.ProxyHeaderKey, d.proxyHeader)
 	return &sftp.DriverAdapter{FtpDriver: ftp.NewAferoAdapter(ctx)}, nil
 }

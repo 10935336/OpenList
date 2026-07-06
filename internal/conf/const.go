@@ -149,6 +149,10 @@ const (
 	FTPTLSPublicCertPath     = "ftp_tls_public_cert_path"
 	SFTPDisablePasswordLogin = "sftp_disable_password_login"
 
+	// audit
+	AuditEnabled       = "audit_enabled"
+	AuditRetentionDays = "audit_retention_days"
+
 	// traffic
 	TaskOfflineDownloadThreadsNum         = "offline_download_task_threads_num"
 	TaskOfflineDownloadTransferThreadsNum = "offline_download_transfer_task_threads_num"
@@ -191,4 +195,5 @@ const (
 	PathKey
 	SharingIDKey
 	SkipHookKey
+	AuditViaKey
 )
